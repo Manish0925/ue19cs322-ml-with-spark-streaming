@@ -1,4 +1,5 @@
 import sys
+import csv
 import json
 import re
 import numpy as np
@@ -47,8 +48,6 @@ bernoulli_train_model = bernoulli_db
 sgd_classifier_train_model = sgd_classifier_db
 mini_batch_kmeans_cluster_train_model = mini_batch_kmeans_cluster_db
 
-# my_schema = StructType([StructField(name='tweet', dataType=StringType(), nullable=True), StructField(name='sentiment', dataType=IntegerType(), nullable=True)])
-
 row = lines.flatMap(lambda line: json.loads(line))
 
 def p_process(rdd):
@@ -59,6 +58,8 @@ def p_process(rdd):
     global bernoulli_train_model
     global sgd_classifier_train_model
     global mini_batch_kmeans_cluster_train_model
+    global field
+    global batch_no
 
     start_index = 0
     list1 = []
@@ -103,16 +104,48 @@ def p_process(rdd):
         X_test=vectorizer.fit_transform(tweet_list)
         y_test= sentiments
 
-        print("------------------")
-        print("perceptron_train_model score", perceptron_train_model.score(X_test, y_test))
-        print("bernoulli_train_model score", bernoulli_train_model.score(X_test, y_test))
-        print("sgd_classifier_train_model score", sgd_classifier_train_model.score(X_test, y_test))
-        print("mini_batch_kmeans_cluster_train_model score", mini_batch_kmeans_cluster_train_model.score(X_test, y_test))
-        print("------------------")
+        with open('perceptron_score.csv', 'a', newline='') as percepton_score_file:
+            row = [[batch_no, perceptron_train_model.score(X_test, y_test)]]
+            csvwriter = csv.writer(percepton_score_file)
+            csvwriter.writerows(row)
 
+        with open('bernoulli_score.csv', 'a') as bernoulli_score_file:
+            row = [[batch_no, bernoulli_train_model.score(X_test, y_test)]]
+            csvwriter = csv.writer(bernoulli_score_file)
+            csvwriter.writerows(row)
+        
+        with open('sgd_classifier_score.csv', 'a') as sgd_classifier_score_file:
+            row = [[batch_no, sgd_classifier_train_model.score(X_test, y_test)]]
+            csvwriter = csv.writer(sgd_classifier_score_file)
+            csvwriter.writerows(row)
+        
+        with open('mini_batch_kmeans_cluster_score.csv', 'a') as mini_batch_kmeans_cluster_score_file:
+            row = [[batch_no, mini_batch_kmeans_cluster_train_model.score(X_test, y_test)]]
+            csvwriter = csv.writer(mini_batch_kmeans_cluster_score_file)
+            csvwriter.writerows(row)
+
+    batch_no+=1
 
 
 row.foreachRDD(p_process)
+field = ["Batch", "Score"]
+batch_no = 1
+
+# with open('perceptron_score.csv', 'w') as percepton_score_file:
+#     csvwriter = csv.writer(percepton_score_file)
+#     csvwriter.writerow(field)
+
+# with open('bernoulli_score.csv', 'w') as bernoulli_score_file:
+#     csvwriter = csv.writer(bernoulli_score_file)
+#     csvwriter.writerow(field)
+
+# with open('sgd_classifier_score.csv', 'w') as sgd_classifier_score_file:
+#     csvwriter = csv.writer(sgd_classifier_score_file)
+#     csvwriter.writerow(field)
+
+# with open('mini_batch_kmeans_cluster_score.csv', 'w') as mini_batch_kmeans_cluster_score_file:
+#     csvwriter = csv.writer(mini_batch_kmeans_cluster_score_file)
+#     csvwriter.writerow(field)
 
 ssc.start()
 ssc.awaitTermination()

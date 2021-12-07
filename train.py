@@ -74,7 +74,6 @@ def p_process(rdd):
 
             if len(tweet) != 0:
                 list1.append((sentiment, tweet))
-                # print(tweet)
 
         sqlContext = SQLContext(sc)
         df = sqlContext.createDataFrame(list1, col)
@@ -85,15 +84,19 @@ def p_process(rdd):
         y_train= sentiments
 
         if allow_flag:
-            percetron_train_model = Perceptron()
-            bernoulli_train_model = BernoulliNB()
-            sgd_classifier_train_model = SGDClassifier()
-            mini_batch_kmeans_cluster_train_model = MiniBatchKMeans(n_clusters=2)
-
-            percetron_train_model.partial_fit(X_train,y_train, classes = [0,4])
+            perceptron_train_model.partial_fit(X_train,y_train, classes = [0,4])
             bernoulli_train_model.partial_fit(X_train,y_train, classes = [0,4])
             sgd_classifier_train_model.partial_fit(X_train,y_train, classes = [0,4])
             mini_batch_kmeans_cluster_train_model.partial_fit(X_train,y_train)
+
+            with open('perceptron', 'wb') as perceptron_dbfile:
+                pickle.dump(perceptron_train_model,perceptron_dbfile)
+            with open('bernoulli', 'wb') as bernoulli_dbfile:
+                pickle.dump(bernoulli_train_model,bernoulli_dbfile)
+            with open('sgd_classifier', 'wb') as sgd_classifier_dbfile:
+                pickle.dump(sgd_classifier_train_model,sgd_classifier_dbfile)
+            with open('mini_batch_kmeans_cluster', 'wb') as mini_batch_kmeans_cluster_dbfile:
+                pickle.dump(mini_batch_kmeans_cluster_train_model,mini_batch_kmeans_cluster_dbfile)
         else:
             allow_flag = True
 
@@ -103,31 +106,14 @@ ssc = StreamingContext(sc, 1)
 
 lines = ssc.socketTextStream("localhost", 6100)
 
-perceptron_dbfile = open('perceptron', 'wb')
-bernoulli_dbfile = open('bernoulli', 'wb')
-sgd_classifier_dbfile = open('sgd_classifier', 'wb')
-mini_batch_kmeans_cluster_dbfile = open('mini_batch_kmeans_cluster', 'wb')
-
-# my_schema = StructType([StructField(name='tweet', dataType=StringType(), nullable=True), StructField(name='sentiment', dataType=IntegerType(), nullable=True)])
+perceptron_train_model = Perceptron()
+bernoulli_train_model = BernoulliNB()
+sgd_classifier_train_model = SGDClassifier()
+mini_batch_kmeans_cluster_train_model = MiniBatchKMeans(n_clusters=2)
 
 row = lines.flatMap(lambda line: json.loads(line))
 
 row.foreachRDD(p_process)
-
-perceptron_db = perceptron_train_model
-bernoulli_db = bernoulli_train_model
-sgd_classifier_db = sgd_classifier_train_model
-mini_batch_kmeans_cluster_db = mini_batch_kmeans_cluster_train_model
-
-pickle.dump(perceptron_db,perceptron_dbfile)
-pickle.dump(bernoulli_db,bernoulli_dbfile)
-pickle.dump(sgd_classifier_db,sgd_classifier_dbfile)
-pickle.dump(mini_batch_kmeans_cluster_db,mini_batch_kmeans_cluster_dbfile)
-
-perceptron_dbfile.close()
-bernoulli_dbfile.close()
-sgd_classifier_dbfile.close()
-mini_batch_kmeans_cluster_dbfile.close()
 
 ssc.start()
 ssc.awaitTermination()
