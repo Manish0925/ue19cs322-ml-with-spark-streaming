@@ -1,20 +1,12 @@
-import sys
 import json
 import re
-import numpy as np
-from pyspark import SparkContext
-from pyspark.streaming import StreamingContext
-from pyspark.sql import SQLContext, Row
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType
 from sklearn.feature_extraction.text import HashingVectorizer
-
-from pyspark.ml.feature import OneHotEncoder, StringIndexer, VectorAssembler
-from pyspark.ml.feature import RegexTokenizer, StopWordsRemover, CountVectorizer
-from pyspark.ml.classification import LogisticRegression
-
 from sklearn.naive_bayes import BernoulliNB
 from sklearn.linear_model import Perceptron, SGDClassifier
 from sklearn.cluster import MiniBatchKMeans
+from pyspark import SparkContext
+from pyspark.streaming import StreamingContext
+from pyspark.sql import Row
 
 import pickle
 
@@ -22,50 +14,42 @@ import pickle
 first_batch = True
 tweet_id = 0
 sc = None
-perceptron_train_model=None
-bernoulli_train_model=None
-sgd_classifier_train_model=None
-mini_batch_kmeans_cluster_train_model=None
+perceptron_train_model = None
+bernoulli_train_model = None
+sgd_classifier_train_model = None
+mini_batch_kmeans_cluster_train_model = None
 allow_flag = False
 
 
 def p_process(rdd):
-    global tweet_id
-    global first_batch
-    global sc
-    global perceptron_train_model
-    global bernoulli_train_model
-    global sgd_classifier_train_model
-    global mini_batch_kmeans_cluster_train_model
-    global allow_flag
-
+    global tweet_id, first_batch, sc, perceptron_train_model, bernoulli_train_model, mini_batch_kmeans_cluster_train_model, allow_flag
     start_index = 0
     list1 = []
     tweet_list = []
     sentiments = []
-    col = ["sentiment","tweet"]
-    if(not rdd.isEmpty()):
+    if not rdd.isEmpty():
         if first_batch:
             first_batch = False
             start_index = 1
-        row = rdd.map(lambda x: Row(sentiment=x[0], tweet=x[1]))
         a = rdd.collect()[start_index:]
         a = list(map(lambda i: i.split(",", 1), a))
         for i in range(len(a)):
             sentiment = int(a[i][0])
             tweet = a[i][1].lstrip().rstrip()
-            tweet = re.sub(r'http\S+', '', tweet)
-            tweet = tweet.strip('\"').lstrip().rstrip()
-            tweet = " ".join(
-                filter(lambda x: x[0] != '@', tweet.split())).lstrip().rstrip()
-            tweet = " ".join(
-                filter(lambda x: x[0] != '#', tweet.split())).lstrip().rstrip()
+            tweet = re.sub(r"http\S+", "", tweet)
+            tweet = tweet.strip('"').lstrip().rstrip()
+            tweet = (
+                " ".join(filter(lambda x: x[0] != "@", tweet.split())).lstrip().rstrip()
+            )
+            tweet = (
+                " ".join(filter(lambda x: x[0] != "#", tweet.split())).lstrip().rstrip()
+            )
 
             # Removing punctuations in string using regex
-            tweet = re.sub(r'[^\w\s]', ' ', tweet).lstrip().rstrip()
+            tweet = re.sub(r"[^\w\s]", " ", tweet).lstrip().rstrip()
 
             # Converting multiple white-spaces into single whitespace
-            tweet = re.sub(r' +', ' ', tweet).lstrip().rstrip()
+            tweet = re.sub(r" +", " ", tweet).lstrip().rstrip()
 
             # converting tweet to lowercase
             tweet = tweet.lower()
@@ -75,28 +59,30 @@ def p_process(rdd):
             if len(tweet) != 0:
                 list1.append((sentiment, tweet))
 
-        sqlContext = SQLContext(sc)
-        df = sqlContext.createDataFrame(list1, col)
+        vectorizer = HashingVectorizer(n_features=1000)
 
-        vectorizer=HashingVectorizer(n_features=1000)
-
-        X_train=vectorizer.fit_transform(tweet_list)
-        y_train= sentiments
+        X_train = vectorizer.fit_transform(tweet_list)
+        y_train = sentiments
 
         if allow_flag:
-            perceptron_train_model.partial_fit(X_train,y_train, classes = [0,4])
-            bernoulli_train_model.partial_fit(X_train,y_train, classes = [0,4])
-            sgd_classifier_train_model.partial_fit(X_train,y_train, classes = [0,4])
-            mini_batch_kmeans_cluster_train_model.partial_fit(X_train,y_train)
+            perceptron_train_model.partial_fit(X_train, y_train, classes=[0, 4])
+            bernoulli_train_model.partial_fit(X_train, y_train, classes=[0, 4])
+            sgd_classifier_train_model.partial_fit(X_train, y_train, classes=[0, 4])
+            mini_batch_kmeans_cluster_train_model.partial_fit(X_train, y_train)
 
-            with open('perceptron', 'wb') as perceptron_dbfile:
-                pickle.dump(perceptron_train_model,perceptron_dbfile)
-            with open('bernoulli', 'wb') as bernoulli_dbfile:
-                pickle.dump(bernoulli_train_model,bernoulli_dbfile)
-            with open('sgd_classifier', 'wb') as sgd_classifier_dbfile:
-                pickle.dump(sgd_classifier_train_model,sgd_classifier_dbfile)
-            with open('mini_batch_kmeans_cluster', 'wb') as mini_batch_kmeans_cluster_dbfile:
-                pickle.dump(mini_batch_kmeans_cluster_train_model,mini_batch_kmeans_cluster_dbfile)
+            with open("perceptron", "wb") as perceptron_dbfile:
+                pickle.dump(perceptron_train_model, perceptron_dbfile)
+            with open("bernoulli", "wb") as bernoulli_dbfile:
+                pickle.dump(bernoulli_train_model, bernoulli_dbfile)
+            with open("sgd_classifier", "wb") as sgd_classifier_dbfile:
+                pickle.dump(sgd_classifier_train_model, sgd_classifier_dbfile)
+            with open(
+                "mini_batch_kmeans_cluster", "wb"
+            ) as mini_batch_kmeans_cluster_dbfile:
+                pickle.dump(
+                    mini_batch_kmeans_cluster_train_model,
+                    mini_batch_kmeans_cluster_dbfile,
+                )
         else:
             allow_flag = True
 
